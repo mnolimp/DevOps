@@ -1,0 +1,11 @@
+{
+  "name": "quotes-scrapper",
+  "version": "1.0.0",
+  "main": "src/scraper.js",
+  "scripts": {
+    "start": "node src/scraper.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
