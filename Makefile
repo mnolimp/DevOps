@@ -1,19 +1,37 @@
 IMAGE_NAME := quotes-scrapper
 IMAGE_TAG  := latest
 OUT_DIR    := out
-SUDO 	   :=
+INFRA_DIR  := infra
+DOCKER     := sudo docker
+COMPOSE    := $(DOCKER) compose
+TF         := terraform
 
-.PHONY: build run clean ci
+.PHONY: build provision deploy run clean destroy ci
 
 build:
-	$(SUDO) docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 run:
 	mkdir -p $(OUT_DIR)
-	$(SUDO) docker run --rm -v "$(PWD)/$(OUT_DIR):/app/out" $(IMAGE_NAME):$(IMAGE_TAG)
+	$(DOCKER) run --rm -v "$(PWD)/$(OUT_DIR):/app/out" $(IMAGE_NAME):$(IMAGE_TAG)
+
+provision:
+	$(COMPOSE) up -d
+	@echo "Waiting for Floci to become healthy..."
+	@for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:4566/_localstack/health > /dev/null; then \
+			echo "Floci is up"; break; \
+		fi; \
+		sleep 1; \
+	done
+	cd $(INFRA_DIR) && $(TF) init -input=false && $(TF) apply -auto-approve -input=false
+
+destroy:
+	cd $(INFRA_DIR) && $(TF) destroy -auto-approve -input=false
+	$(COMPOSE) down
 
 clean:
-	-$(SUDO) docker rmi -f $(IMAGE_NAME):$(IMAGE_TAG)
+	-$(DOCKER) rmi -f $(IMAGE_NAME):$(IMAGE_TAG)
 	rm -rf $(OUT_DIR)
 	git status --short
 
