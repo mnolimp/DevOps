@@ -11,9 +11,23 @@ TF         := terraform
 build:
 	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
-run:
+run: 
 	mkdir -p $(OUT_DIR)
-	$(DOCKER) run --rm -v "$(PWD)/$(OUT_DIR):/app/out" $(IMAGE_NAME):$(IMAGE_TAG)
+	@echo "Sending message to SQS..."
+	AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
+	aws --endpoint-url=http://localhost:4566 sqs send-message \
+		--queue-url http://localhost:4566/000000000000/scraper-jobs \
+		--message-body '{"task":"scrape"}'
+	@echo "Running scraper..."
+	$(DOCKER) run --rm \
+		--add-host=host.docker.internal:host-gateway \
+		-e AWS_ENDPOINT_URL=http://host.docker.internal:4566 \
+		-e AWS_REGION=us-east-1 \
+		-e AWS_ACCESS_KEY_ID=test \
+		-e AWS_SECRET_ACCESS_KEY=test \
+		-e SQS_QUEUE_URL=http://host.docker.internal:4566/000000000000/scraper-jobs \
+		-e S3_BUCKET_NAME=scraper-results \
+		$(IMAGE_NAME):$(IMAGE_TAG)
 
 provision:
 	$(COMPOSE) up -d
